@@ -1,0 +1,95 @@
+<!--final_folder/frontend_connected/frontend/resume_upload.html-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Upload Resume | GuideMe</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-slate-50 min-h-screen flex items-center justify-center p-6">
+    <div class="bg-white p-10 rounded-3xl shadow-xl max-w-lg w-full border border-slate-100">
+        <div class="text-center mb-8">
+            <div
+                class="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl">
+                📄</div>
+            <h2 class="text-2xl font-black text-slate-900">Resume Analysis</h2>
+            <p class="text-slate-500 mt-2">Upload your resume to let AI extract your technical skills automatically.</p>
+        </div>
+
+        <div id="drop-zone"
+            class="border-2 border-dashed border-slate-200 rounded-2xl p-10 text-center hover:border-blue-400 transition-colors cursor-pointer bg-slate-50">
+            <input type="file" id="resume-file" class="hidden" accept=".pdf,.doc,.docx">
+            <p class="text-slate-600 font-medium">Click to browse or drag & drop</p>
+            <p class="text-xs text-slate-400 mt-2">Supports PDF, DOCX (Max 5MB)</p>
+            <p id="file-name" class="mt-4 text-blue-600 font-bold text-sm hidden"></p>
+        </div>
+
+        <button id="upload-btn" onclick="handleUpload()"
+            class="mt-8 w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-700 transition disabled:bg-slate-300">
+            Analyze with Llama 3.1
+        </button>
+
+        <div id="status" class="mt-6 text-center hidden">
+            <div
+                class="animate-spin inline-block w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full mr-2 align-middle">
+            </div>
+            <span class="text-slate-600 font-medium italic">Llama is extracting skills...</span>
+        </div>
+
+        <a href="/dashboard"
+            class="block text-center mt-6 text-slate-400 text-sm font-semibold hover:text-slate-600">&larr; Back to
+            Dashboard</a>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('resume-file');
+        const dropZone = document.getElementById('drop-zone');
+        const fileNameDisplay = document.getElementById('file-name');
+
+        dropZone.onclick = () => fileInput.click();
+
+        fileInput.onchange = (e) => {
+            if (e.target.files.length > 0) {
+                fileNameDisplay.innerText = `Selected: ${e.target.files[0].name}`;
+                fileNameDisplay.classList.remove('hidden');
+            }
+        };
+
+        async function handleUpload() {
+            if (fileInput.files.length === 0) return alert("Please select a resume first");
+
+            const btn = document.getElementById('upload-btn');
+            const status = document.getElementById('status');
+
+            status.classList.remove('hidden');
+            btn.disabled = true;
+            btn.innerText = "Processing...";
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            try {
+                const response = await fetch('/api/upload', { method: 'POST', body: formData });
+                const data = await response.json();
+
+                if (data.success && data.skills) {
+                    localStorage.setItem('userSkills', JSON.stringify(data.skills));
+                    window.location.href = "/personality";
+                } else {
+                    alert("Analysis failed: " + (data.message || "Unknown error"));
+                    status.classList.add('hidden');
+                    btn.disabled = false;
+                    btn.innerText = "Analyze with Llama 3.1";
+                }
+            } catch (err) {
+                alert("Server error. Make sure your FastAPI app is running.");
+                status.classList.add('hidden');
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+
+</html>

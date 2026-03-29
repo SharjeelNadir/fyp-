@@ -1,0 +1,74 @@
+<!-- frontend/signup.html -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Sign Up | GuideMe</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-slate-100 min-h-screen flex items-center justify-center">
+    <div class="bg-white w-full max-w-md p-10 rounded-2xl shadow-xl">
+        <h2 class="text-3xl font-bold text-center mb-6">Create Account</h2>
+
+        <form id="signup-form" class="space-y-4">
+            <div>
+                <label class="text-sm font-medium text-slate-700">Email</label>
+                <input type="email" name="email" required
+                    class="w-full mt-1 p-4 border rounded-xl focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <div>
+                <label class="text-sm font-medium text-slate-700">Password</label>
+                <input type="password" name="password" required
+                    class="w-full mt-1 p-4 border rounded-xl focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <button id="signup-btn"
+                class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition">
+                Sign Up
+            </button>
+        </form>
+
+        <p id="msg" class="mt-4 text-center text-sm font-semibold"></p>
+
+        <p class="mt-6 text-center text-slate-500">
+            Already have an account?
+            <a href="/login" class="text-blue-600 font-bold">Login</a>
+        </p>
+    </div>
+
+    <script>
+        const form = document.getElementById("signup-form");
+        const msg = document.getElementById("msg");
+        const btn = document.getElementById("signup-btn");
+
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            msg.textContent = "";
+            btn.disabled = true;
+            btn.textContent = "Creating account...";
+
+            const response = await fetch("/api/signup", {
+                method: "POST",
+                body: new FormData(form)
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                msg.className = "mt-4 text-center text-green-600 font-semibold";
+                msg.textContent = "✅ Account created successfully. Redirecting to login...";
+                setTimeout(() => window.location.href = "/login", 1500);
+            } else {
+                msg.className = "mt-4 text-center text-red-600 font-semibold";
+                msg.textContent = data.message;
+                btn.disabled = false;
+                btn.textContent = "Sign Up";
+            }
+        };
+    </script>
+</body>
+
+</html>

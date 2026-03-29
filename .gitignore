@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Database
+career_app.db
+
+# Uploads
+uploads/
+
+# Environment
+.env
+environment.yml
+
+# React
+node_modules/
+build/
+dist/
+
+# OS junk
+.DS_Store
+
+# Zip files
+*.zip

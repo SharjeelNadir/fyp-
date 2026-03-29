@@ -1,0 +1,80 @@
+<!--final_folder/frontend_connected/frontend/personality.html-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Personality Assessment | GuideMe</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-slate-50 min-h-screen p-6">
+    <div class="max-w-2xl mx-auto bg-white p-10 rounded-3xl shadow-xl mt-10 border border-slate-100">
+        <h2 class="text-3xl font-black text-slate-900 mb-2">Step 2: OCEAN Traits</h2>
+        <p class="text-slate-500 mb-8">Rate how much you agree with each statement (1 = Disagree, 5 = Agree).</p>
+
+        <div id="loader" class="text-center py-10">
+            <div
+                class="animate-spin inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mb-4">
+            </div>
+            <p class="text-slate-400 italic">Llama 3.1 is tailoring your traits...</p>
+        </div>
+
+        <div id="questions-form" class="hidden space-y-10">
+        </div>
+
+        <button id="continue-btn" onclick="savePersonality()"
+            class="hidden mt-12 w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-blue-700 transition">
+            Continue to Technical Quiz
+        </button>
+    </div>
+
+    <script>
+        let traitAnswers = {};
+
+        async function loadPersonality() {
+            try {
+                const response = await fetch('/api/personality_questions');
+                const questions = await response.json();
+
+                const container = document.getElementById('questions-form');
+                container.innerHTML = '';
+
+                questions.forEach((q, index) => {
+                    const div = document.createElement('div');
+                    div.innerHTML = `
+                        <p class="font-bold text-slate-800 mb-4">${index + 1}. ${q.question}</p>
+                        <div class="flex items-center gap-4">
+                            <span class="text-xs font-bold text-slate-400">DISAGREE</span>
+                            <input type="range" min="1" max="5" value="3" 
+                                   class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                   oninput="updateVal('${q.trait}', this.value)">
+                            <span class="text-xs font-bold text-slate-400">AGREE</span>
+                        </div>
+                    `;
+                    container.appendChild(div);
+                    traitAnswers[q.trait] = 3; // Default value
+                });
+
+                document.getElementById('loader').classList.add('hidden');
+                container.classList.remove('hidden');
+                document.getElementById('continue-btn').classList.remove('hidden');
+            } catch (err) {
+                alert("Failed to load questions. Check terminal.");
+            }
+        }
+
+        function updateVal(trait, val) {
+            traitAnswers[trait] = parseInt(val);
+        }
+
+        function savePersonality() {
+            localStorage.setItem('userPersonality', JSON.stringify(traitAnswers));
+            window.location.href = "/quiz";
+        }
+
+        loadPersonality();
+    </script>
+</body>
+
+</html>

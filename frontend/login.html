@@ -1,0 +1,61 @@
+<!-- frontend/login.html -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>Login | GuideMe</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-slate-100 min-h-screen flex items-center justify-center">
+    <div class="bg-white w-full max-w-md p-10 rounded-2xl shadow-xl">
+        <h2 class="text-3xl font-bold mb-6 text-center">Welcome Back</h2>
+
+        <form id="login-form" class="space-y-4">
+            <input type="email" name="email" required placeholder="Email" class="w-full p-4 border rounded-xl">
+
+            <input type="password" name="password" required placeholder="Password" class="w-full p-4 border rounded-xl">
+
+            <button id="login-btn" class="w-full bg-blue-600 text-white p-4 rounded-xl font-bold hover:bg-blue-700">
+                Login
+            </button>
+        </form>
+
+        <p id="error" class="mt-4 text-center text-red-600 font-semibold hidden"></p>
+
+        <p class="mt-6 text-center text-slate-500">
+            New here?
+            <a href="/signup" class="text-blue-600 font-bold">Create account</a>
+        </p>
+    </div>
+
+    <script>
+        const form = document.getElementById("login-form");
+        const error = document.getElementById("error");
+        const btn = document.getElementById("login-btn");
+
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            error.classList.add("hidden");
+            btn.disabled = true;
+            btn.textContent = "Logging in...";
+
+            const response = await fetch("/api/login", {
+                method: "POST",
+                body: new FormData(form)
+            });
+
+            if (response.redirected) {
+                window.location.href = response.url;
+            } else {
+                const data = await response.json();
+                error.textContent = data.detail || "Invalid email or password";
+                error.classList.remove("hidden");
+                btn.disabled = false;
+                btn.textContent = "Login";
+            }
+        };
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,84 @@
+<!--final_folder/frontend_connected/frontend/signup.html-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Assessment Complete | GuideMe</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-slate-50 flex items-center justify-center min-h-screen p-6">
+    <div class="bg-white p-12 rounded-3xl shadow-2xl max-w-xl w-full text-center border border-slate-100">
+        <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-8 text-5xl">🏆</div>
+
+        <h2 class="text-4xl font-black text-slate-900 mb-2">You Made It!</h2>
+        <p class="text-slate-500 mb-10 font-medium text-lg">Your technical and personality assessment is complete.</p>
+
+        <div class="bg-slate-50 rounded-2xl p-8 mb-10 border border-slate-100">
+            <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Total Score</p>
+            <div class="text-6xl font-black text-blue-600">
+                <span id="score">0</span><span class="text-slate-300 mx-1">/</span><span id="total">0</span>
+            </div>
+        </div>
+
+        <div id="save-status" class="mb-8 text-sm font-bold text-blue-500 animate-pulse">
+            Syncing results to your profile...
+        </div>
+
+        <div class="flex flex-col gap-4">
+            <a href="/profile" id="profile-btn"
+                class="hidden w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-700 transition transform hover:-translate-y-1">
+                View My Full Report & Roadmap
+            </a>
+            <a href="/dashboard" class="w-full text-slate-400 font-bold hover:text-slate-600 transition">
+                Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <script>
+        // 1. Pull data from local storage (saved by quiz.html)
+        const score = localStorage.getItem('quizScore') || 0;
+        const total = localStorage.getItem('totalQ') || 0;
+        const personality = localStorage.getItem('userPersonality') || "{}";
+        const breakdown = localStorage.getItem('skillBreakdown') || "[]";
+
+        document.getElementById('score').innerText = score;
+        document.getElementById('total').innerText = total;
+
+        // 2. Function to save data to the SQL Database via your API
+        async function saveResults() {
+            const formData = new FormData();
+            formData.append('total_score', score);
+            formData.append('total_questions', total);
+            formData.append('personality', personality);
+            formData.append('breakdown', breakdown);
+
+            try {
+                const response = await fetch('/api/save_results', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('save-status').innerText = "✅ Results secured in your profile.";
+                    document.getElementById('save-status').classList.remove('animate-pulse', 'text-blue-500');
+                    document.getElementById('save-status').classList.add('text-green-600');
+                    // Show the Profile button now that saving is confirmed
+                    document.getElementById('profile-btn').classList.remove('hidden');
+                } else {
+                    document.getElementById('save-status').innerText = "❌ Error saving results. Please try refreshing.";
+                }
+            } catch (err) {
+                document.getElementById('save-status').innerText = "❌ Connection lost. Check your server.";
+            }
+        }
+
+        // Trigger the save on page load
+        window.onload = saveResults;
+    </script>
+</body>
+
+</html>
