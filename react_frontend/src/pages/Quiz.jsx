@@ -1,65 +1,120 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 const Quiz = () => {
 
     const navigate = useNavigate();
 
-    // STATE
     const [questions, setQuestions] = useState([]);
     const [currentIdx, setCurrentIdx] = useState(0);
     const [answerLocked, setAnswerLocked] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [isGenerating, setIsGenerating] = useState(true);
+    const [expectedTotal, setExpectedTotal] = useState(null);
+    const [generatedTotal, setGeneratedTotal] = useState(0);
+    const [elapsedSeconds, setElapsedSeconds] = useState(null);
+    const [waitingForMore,setWaitingForMore] = useState(false);
 
-    // SAFE REFS
     const scoreRef = useRef(0);
     const breakdownRef = useRef([]);
+    const pollRef = useRef(null);
+    const MIN_START_QUESTIONS = 8; // fallback if server doesn't send expected_total
 
-    // ===============================
-    // LOAD QUIZ FROM DATABASE
-    // ===============================
+
     useEffect(() => {
 
-        const loadQuiz = async () => {
-
+        const fetchQuiz = async () => {
             try {
-
                 const res = await fetch(
-
                     "http://localhost:8000/api/quiz",
-
                     { credentials: "include" }
-
                 );
-
-                if (!res.ok) {
-
-                    console.error("Quiz not found");
-                    return;
-
-                }
 
                 const data = await res.json();
 
-                setQuestions(data);
+                const fetchedQuestions = data.questions || [];
+                const generating = !!data.generating;
+                const expected = Number.isFinite(Number(data.expected_total))
+                    ? Number(data.expected_total)
+                    : null;
+                const generated = Number.isFinite(Number(data.generated_total))
+                    ? Number(data.generated_total)
+                    : fetchedQuestions.length;
+                const elapsed = (data.elapsed_seconds === null || data.elapsed_seconds === undefined)
+                    ? null
+                    : Number(data.elapsed_seconds);
 
-                setLoading(false);
+                setQuestions(prev => {
 
-            } catch (err) {
+    if(fetchedQuestions.length > prev.length)
+        return fetchedQuestions;
 
-                console.error("Quiz load failed:", err);
+    return prev;
 
+});
+
+                setIsGenerating(generating);
+                setExpectedTotal(expected);
+                setGeneratedTotal(generated);
+                setElapsedSeconds(Number.isFinite(elapsed) ? elapsed : null);
+
+                // Only start quiz after generation finished AND expected total reached (if known)
+                const minimumStart = Math.min(expected || 999, MIN_START_QUESTIONS);
+
+                if (generated >= minimumStart) {
+                    setLoading(false);
+                } else {
+                    setLoading(true);
+                }
+
+                // Poll while generating OR until expected count reached
+                const shouldPoll = generating || (expected ? generated < expected : true);
+                if (shouldPoll && !pollRef.current) {
+
+                    pollRef.current = setInterval(() => {
+                
+                        fetchQuiz();
+                
+                    },1200);
+                }
+
+                if (!shouldPoll && pollRef.current) {
+                    clearInterval(pollRef.current);
+                    pollRef.current = null;
+                }
             }
-
+            catch (err) {
+                console.error(err);
+                setLoading(false);
+            }
         };
 
-        loadQuiz();
+        fetchQuiz();
+
+        return () => {
+            if (pollRef.current) {
+                clearInterval(pollRef.current);
+                pollRef.current = null;
+            }
+        };
 
     }, []);
+    useEffect(()=>{
 
-    // ===============================
-    // HANDLE ANSWER
-    // ===============================
+    if(waitingForMore && questions.length > currentIdx){
+
+        setWaitingForMore(false);
+
+        setAnswerLocked(false);
+
+    }
+
+},[questions.length, waitingForMore, currentIdx]);
+
+
+
     const handleAnswer = (choice) => {
 
         if (answerLocked) return;
@@ -68,14 +123,17 @@ const Quiz = () => {
 
         const q = questions[currentIdx] || {};
 
-        const isCorrect = choice === q.answer;
+        const correct = choice === q?.answer;
 
         breakdownRef.current.push([
+
             q.skill,
-            isCorrect ? 1 : 0
+
+            correct ? 1 : 0
+
         ]);
 
-        if (isCorrect) {
+        if (correct) {
 
             scoreRef.current++;
 
@@ -88,20 +146,32 @@ const Quiz = () => {
             if (next < questions.length) {
 
                 setCurrentIdx(next);
+
                 setAnswerLocked(false);
+
                 return;
 
             }
 
+            
+            if (currentIdx >= questions.length-1 && isGenerating){
+
+    setWaitingForMore(true);
+
+    setAnswerLocked(false);
+
+    return;
+
+}
+
             submitResults();
 
-        }, 150);
+        }, 200);
 
     };
 
-    // ===============================
-    // SAVE RESULTS
-    // ===============================
+
+
     const submitResults = async () => {
 
         const payload = {
@@ -111,7 +181,9 @@ const Quiz = () => {
             total_questions: breakdownRef.current.length,
 
             personality: JSON.parse(
+
                 localStorage.getItem("userPersonality")
+
             ),
 
             breakdown: breakdownRef.current
@@ -146,89 +218,172 @@ const Quiz = () => {
 
             }
 
-        } catch (err) {
+        }
+        catch (err) {
 
-            console.error("Save failed:", err);
+            console.error(err);
 
         }
 
     };
 
-    // ===============================
-    // LOADING SCREEN
-    // ===============================
-    if (loading) {
+
+
+    if (loading)
+        return (
+    
+            <div className="h-screen flex flex-col items-center justify-center bg-[#020617] text-white">
+    
+                <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-6" />
+    
+                <p className="text-slate-400 font-bold">
+                    AI generating technical assessment...
+                </p>
+    
+                <p className="text-slate-500 text-xs mt-2">
+                    {expectedTotal
+                        ? `Generated ${generatedTotal}/${expectedTotal} questions`
+                        : `Generated ${generatedTotal} questions`}
+                    {elapsedSeconds !== null ? ` • ${elapsedSeconds}s elapsed` : ""}
+                </p>
+    
+                {/* ADD THIS PART */}
+                {waitingForMore && (
+                    <p className="text-xs text-indigo-400 mt-3">
+                        Generating remaining questions...
+                    </p>
+                )}
+    
+            </div>
+    
+        );
+
+
+
+    if (questions.length === 0)
 
         return (
 
             <div className="h-screen flex items-center justify-center bg-[#020617] text-white">
 
-                <div className="text-xl font-bold">
-
-                    Loading Quiz...
-
-                </div>
+                No quiz generated. Upload resume again.
 
             </div>
 
         );
 
+
+
+const q = questions[currentIdx];
+
+const splitQuestion = (text) => {
+
+    if(!text) return {text:"",code:null};
+
+    const match = text.match(/```([\s\S]*?)```|`([\s\S]*?)`/);
+
+    if(!match){
+        return {text,code:null};
     }
 
-    if (questions.length === 0) {
+    const code = (match[1] || match[2])
+    .replace(/{/g,"{\n")
+    .replace(/;/g,";\n")
+    .replace(/}/g,"\n}");
 
-        return (
+    return {
+        text: text.replace(match[0], "").trim(),
+        code: code
+    };
 
-            <div className="h-screen flex items-center justify-center bg-[#020617] text-white">
+};
 
-                No questions found. Upload resume again.
+const parsed = splitQuestion(q.question);
 
-            </div>
+const progress = ((currentIdx + 1) / questions.length) * 100;
 
-        );
 
-    }
-
-    const q = questions[currentIdx];
-
-    // ===============================
-    // UI
-    // ===============================
     return (
 
-        <div className="min-h-screen bg-[#020617] text-white p-6 flex items-center justify-center">
+        <div className="min-h-screen bg-[#020617] text-white flex items-center justify-center p-8">
 
-            <div className="w-full max-w-3xl bg-slate-900/40 border border-white/10 rounded-[2.5rem] p-10">
+            <div className="w-full max-w-3xl bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-12 shadow-2xl">
+
+                {isGenerating && (
+                    <div className="mb-6 flex items-center justify-between gap-4 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl px-5 py-3">
+                        <p className="text-xs font-bold text-indigo-300">
+                            More questions are still generating in the background.
+                        </p>
+                        <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                )}
 
                 {/* HEADER */}
+                <div className="mb-10">
 
-                <div className="flex justify-between mb-8">
+                    <div className="flex justify-between mb-4">
 
-                    <span className="px-4 py-1.5 rounded-xl bg-indigo-500/20">
+                        <span className="px-4 py-1.5 rounded-xl bg-indigo-500/20 text-indigo-400 font-bold">
 
-                        {q.skill}
+                            {q.skill}
 
-                    </span>
+                        </span>
 
-                    <span>
+                        <span className="text-slate-400">
 
-                        {currentIdx + 1} / {questions.length}
+                            {currentIdx + 1} / {questions.length}
 
-                    </span>
+                        </span>
+
+                    </div>
+
+
+                    {/* Progress bar */}
+                    <div className="w-full h-2 bg-slate-800 rounded-full">
+
+                        <div
+
+                            style={{ width: `${progress}%` }}
+
+                            className="h-2 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full transition-all"
+
+                        />
+
+                    </div>
 
                 </div>
+
+
 
                 {/* QUESTION */}
 
-                <div className="mb-10 text-2xl font-bold">
+<div className="mb-12">
 
-                    {q.question}
+<div className="text-xl font-semibold leading-relaxed whitespace-pre-line">
+    {parsed.text}
+</div>
 
-                </div>
+{parsed.code && (
+<SyntaxHighlighter
+    language="javascript"
+    style={vscDarkPlus}
+    customStyle={{
+        borderRadius:"16px",
+        marginTop:"24px",
+        fontSize:"14px"
+    }}
+>
+{parsed.code}
+</SyntaxHighlighter>
+)}
+
+</div>
+
+
 
                 {/* OPTIONS */}
 
-                <div className="grid gap-4">
+                <div className="grid gap-5">
 
                     {["A", "B", "C", "D"].map(k => (
 
@@ -240,19 +395,23 @@ const Quiz = () => {
 
                             onClick={() => handleAnswer(k)}
 
-                            className={`p-6 rounded-2xl text-left border transition
+                            className={`p-6 rounded-2xl border text-left transition
+
                             ${answerLocked
-                                    ? 'opacity-50 cursor-not-allowed'
-                                    : 'bg-slate-800/30 hover:border-indigo-500'
+
+                                    ? 'opacity-40'
+
+                                    : 'bg-slate-800/40 hover:border-indigo-500 hover:bg-slate-800/70 hover:scale-[1.01]'
+
                                 }`}
 
                         >
 
-                            <strong className="mr-4">
+                            <span className="font-black text-indigo-400 mr-4">
 
                                 {k}
 
-                            </strong>
+                            </span>
 
                             {q.options?.[k]}
 
@@ -261,6 +420,16 @@ const Quiz = () => {
                     ))}
 
                 </div>
+
+
+
+                {/* Footer */}
+                <div className="mt-10 text-xs text-slate-500 text-center">
+
+                    AI evaluates skills dynamically based on responses
+
+                </div>
+
 
             </div>
 
