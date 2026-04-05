@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API } from "../config";
 
 const ResumeUpload = () => {
 
@@ -23,8 +24,7 @@ const ResumeUpload = () => {
 
         try {
 
-            const response = await fetch(
-                'http://localhost:8000/api/upload',
+            const response = await fetch(`${API}/api/upload`,
                 {
                     method: 'POST',
                     body: formData,

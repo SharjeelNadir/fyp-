@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
+import { API } from "../config";
 
 const Profile = () => {
     const [stats, setStats] = useState(null);
@@ -9,8 +10,7 @@ const logout = async () => {
 
 try{
 
-await fetch(
-"http://localhost:8000/api/logout",
+await fetch(`${API}/api/logout`,
 {
 method:"POST",
 credentials:"include"
@@ -44,7 +44,7 @@ navigate('/');
     // Fetch User Stats
     // ==============================
     useEffect(() => {
-        fetch('http://localhost:8000/api/user-stats', { credentials: 'include' })
+        fetch(`${API}/api/user-stats`, { credentials: 'include' })
             .then(res => res.json())
             .then(data => setStats(data))
             .catch(err => console.error("Stats fetch error:", err));
@@ -61,7 +61,7 @@ navigate('/');
         const autoFetch = async () => {
             try {
                 const res = await fetch(
-                    'http://localhost:8000/api/recommend-careers',
+                    `${API}/api/recommend-careers`,
                     { credentials: 'include' }
                 );
                 const data = await res.json();
@@ -95,8 +95,8 @@ navigate('/');
     try {
 
         const url = refresh
-        ? 'http://localhost:8000/api/recommend-careers?refresh=true'
-        : 'http://localhost:8000/api/recommend-careers';
+        ? `${API}/api/recommend-careers?refresh=true`
+        : `${API}/api/recommend-careers`;
 
         const res = await fetch(
 
@@ -146,7 +146,7 @@ navigate('/');
 
         try {
             const res = await fetch(
-                'http://localhost:8000/api/counsellor-chat',
+                `${API}/api/counsellor-chat`,
                 {
                     method: 'POST',
                     body: formData,

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { API } from "../config";
 
 const Quiz = () => {
 
@@ -27,8 +28,7 @@ const Quiz = () => {
 
         const fetchQuiz = async () => {
             try {
-                const res = await fetch(
-                    "http://localhost:8000/api/quiz",
+                const res = await fetch(`${API}/api/quiz`,
                     { credentials: "include" }
                 );
 
@@ -192,7 +192,7 @@ const Quiz = () => {
 
             const res = await fetch(
 
-                "http://localhost:8000/api/save-results",
+                `${API}/api/save-results`,
 
                 {
 

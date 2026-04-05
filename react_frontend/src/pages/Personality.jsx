@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API } from "../config";
 
 const Personality = () => {
 
@@ -15,7 +16,7 @@ useEffect(() => {
         try {
 
             const res = await fetch(
-                'http://localhost:8000/api/personality-questions'
+                `${API}/api/personality-questions`
             );
 
             const data = await res.json();

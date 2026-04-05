@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { API } from "../config";
 
 const ResumeOptimizer = () => {
     const [jobTitle, setJobTitle] = useState('');
@@ -31,7 +32,7 @@ const ResumeOptimizer = () => {
         setLatex('');
 
         try {
-            const res = await fetch('http://localhost:8000/api/optimize-resume-latex', {
+            const res = await fetch(`${API}/api/optimize-resume-latex`, {
                 method: 'POST',
                 body: formData,
                 credentials: 'include'
