@@ -1,9 +1,29 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { useNavigate } from 'react-router-dom';
 
 const Profile = () => {
     const [stats, setStats] = useState(null);
+const navigate = useNavigate();
+const logout = async () => {
 
+try{
+
+await fetch(
+"http://localhost:8000/api/logout",
+{
+method:"POST",
+credentials:"include"
+}
+);
+
+}catch(e){
+console.log("Logout error");
+}
+
+navigate('/');
+
+};
     // ==============================
     // Career Recommendation State
     // ==============================
@@ -47,9 +67,16 @@ const Profile = () => {
                 const data = await res.json();
 
                 if (data.recommendations && data.recommendations.length > 0) {
-                    setCareers(data.recommendations);
-                    setAlreadyGenerated(true);
-                }
+
+    setCareers(data.recommendations);
+
+    setAlreadyGenerated(true);
+
+}else{
+
+    setAlreadyGenerated(false);
+
+}
             } catch (err) {
                 console.error("Auto career fetch error:", err);
             }
@@ -61,27 +88,45 @@ const Profile = () => {
     // ==============================
     // Fetch Career Recommendations
     // ==============================
-    const fetchCareers = async () => {
-        if (alreadyGenerated) return;
+    const fetchCareers = async (refresh=false) => {
 
-        setLoadingCareers(true);
-        try {
-            const res = await fetch(
-                'http://localhost:8000/api/recommend-careers',
-                { credentials: 'include' }
-            );
-            const data = await res.json();
+    setLoadingCareers(true);
 
-            if (data.recommendations) {
-                setCareers(data.recommendations);
-                setAlreadyGenerated(true);
-            }
-        } catch (err) {
-            console.error("Career fetch error:", err);
-        } finally {
-            setLoadingCareers(false);
+    try {
+
+        const url = refresh
+        ? 'http://localhost:8000/api/recommend-careers?refresh=true'
+        : 'http://localhost:8000/api/recommend-careers';
+
+        const res = await fetch(
+
+            url,
+
+            { credentials:'include' }
+
+        );
+
+        const data = await res.json();
+
+        if(data.recommendations){
+
+            setCareers(data.recommendations);
+
+            setAlreadyGenerated(true);
+
         }
-    };
+
+    } catch(err){
+
+        console.error("Career fetch error:",err);
+
+    } finally{
+
+        setLoadingCareers(false);
+
+    }
+
+};
 
 
     // ==============================
@@ -145,18 +190,50 @@ const Profile = () => {
             <div className="max-w-7xl mx-auto space-y-12">
 
                 {/* HEADER */}
-                <header>
-                    <span className="inline-block px-4 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 
-                                     text-indigo-400 text-[10px] font-black uppercase tracking-[0.3em] mb-4">
-                        Analysis Finalized
-                    </span>
-                    <h1 className="text-6xl font-black tracking-tighter mb-4">
-                        Technical <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-indigo-600">Identity.</span>
-                    </h1>
-                    <p className="text-slate-400 text-lg max-w-2xl">
-                        Your claimed skills and verified technical performance.
-                    </p>
-                </header>
+                <header className="flex justify-between items-start">
+
+<div>
+
+<span className="inline-block px-4 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 
+text-indigo-400 text-[10px] font-black uppercase tracking-[0.3em] mb-4">
+
+Analysis Finalized
+
+</span>
+
+<h1 className="text-6xl font-black tracking-tighter mb-4">
+
+Technical 
+
+<span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-indigo-600">
+Identity.
+</span>
+
+</h1>
+
+<p className="text-slate-400 text-lg max-w-2xl">
+
+Your claimed skills and verified technical performance.
+
+</p>
+
+</div>
+
+<button
+onClick={logout}
+className="px-6 py-3 rounded-xl 
+bg-red-600/20 
+border border-red-500/30 
+text-red-400 
+font-bold text-xs uppercase tracking-widest
+hover:bg-red-600/30 transition"
+>
+
+Logout
+
+</button>
+
+</header>
 
                 <div className="bg-slate-900/30 border border-white/5 p-8 rounded-[2.5rem]">
 
@@ -205,9 +282,13 @@ const Profile = () => {
 
                                 <span className="text-indigo-400 font-bold mb-3">
 
-                                    ({Math.round(
-                                        (master.total_score / master.total_questions) * 100
-                                    )}%)
+                                    ({
+master.total_questions > 0
+? Math.round(
+(master.total_score / master.total_questions) * 100
+)
+: 0
+}%)
 
                                 </span>
 
@@ -217,7 +298,11 @@ const Profile = () => {
                             <div
                                 className="h-full bg-indigo-500"
                                 style={{
-                                    width: `${(master.total_score / master.total_questions) * 100}%`
+                                    width: `${
+master.total_questions > 0
+? (master.total_score / master.total_questions) * 100
+: 0
+}%`
                                 }}
                             />
                         </div>
@@ -294,21 +379,57 @@ const Profile = () => {
                             Career Recommendations
                         </h4>
 
-                        <button
-                            onClick={fetchCareers}
-                            disabled={loadingCareers || alreadyGenerated}
-                            className={`px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition
-        ${alreadyGenerated
-                                    ? "bg-emerald-600 cursor-not-allowed"
-                                    : "bg-indigo-600 hover:bg-indigo-500"
-                                }`}
-                        >
-                            {loadingCareers
-                                ? "Analyzing..."
-                                : alreadyGenerated
-                                    ? "Generated ✓"
-                                    : "Generate"}
-                        </button>
+                        <div className="flex gap-3">
+
+<button
+
+    onClick={()=>fetchCareers(false)}
+
+    disabled={loadingCareers}
+
+    className={`px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition
+
+    ${alreadyGenerated
+
+        ? "bg-emerald-600 cursor-not-allowed"
+
+        : "bg-indigo-600 hover:bg-indigo-500"
+
+    }`}
+
+>
+
+{loadingCareers
+
+? "Analyzing..."
+
+: alreadyGenerated
+
+? "Generated ✓"
+
+: "Generate"}
+
+</button>
+
+{alreadyGenerated && (
+
+<button
+
+onClick={()=>fetchCareers(true)}
+
+className="px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest
+
+bg-purple-600 hover:bg-purple-500 transition"
+
+>
+
+Regenerate
+
+</button>
+
+)}
+
+</div>
 
                     </div>
 
@@ -333,22 +454,21 @@ hover:border-indigo-500/30 transition shadow-xl">
 
                                     <div className="text-5xl font-black text-indigo-400 mb-2">
 
-                                        {career.final_score}%
-                                        <p className="text-xs text-slate-500 mt-2">
+{career.final_score}%
 
-Market readiness:
+<p className="text-xs text-slate-500 mt-2">
+
+Career confidence:
 
 <span className="ml-2 font-bold text-indigo-400">
 
-{career.final_score > 70 ? "High" :
-career.final_score > 40 ? "Moderate" :
-"Developing"}
+{career.confidence}
 
 </span>
 
 </p>
 
-                                    </div>
+</div>
 
                                     <div className="w-full h-2 bg-slate-800 rounded-full">
 
@@ -381,7 +501,19 @@ Personality Match:
 {career.personality_fit}%
 </span>
 </p>
+<p>
+Confidence:
+<span className="text-indigo-400 ml-2">
+{career.confidence}
+</span>
+</p>
 
+<p>
+Skill Coverage:
+<span className="text-indigo-400 ml-2">
+{career.skill_coverage}%
+</span>
+</p>
 <p>
 Claimed Skills Match:
 <span className="text-indigo-400 ml-2">
@@ -402,6 +534,28 @@ Job Fit Analysis
 
 <p className="text-xs">
 {career.reason}
+</p>
+
+</div>
+
+
+
+
+)}
+{career.personality_fit && (
+
+<div className="mt-3 p-3 bg-blue-500/10 
+border border-blue-500/20 
+rounded-xl">
+
+<p className="text-xs font-bold text-blue-400 mb-1">
+Personality Compatibility
+</p>
+
+<p className="text-xs text-slate-300">
+
+This role matches your behavioral profile with {career.personality_fit}% compatibility.
+
 </p>
 
 </div>

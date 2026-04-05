@@ -21,3 +21,26 @@ body {
   background-color: rgba(99, 102, 241, 0.3);
   color: #fff;
 }
+@keyframes scroll {
+
+0% {
+transform: translateX(0);
+}
+
+100% {
+transform: translateX(-50%);
+}
+
+}
+
+.scroll-track {
+
+animation: scroll 35s linear infinite;
+
+}
+
+.scroll-track:hover {
+
+animation-play-state: paused;
+
+}

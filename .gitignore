@@ -1,25 +1,40 @@
 # Python
-__pycache__/
-*.pyc
-*.pyo
+
+**pycache**/
+_.pyc
+_.pyo
 
 # Database
+
 career_app.db
 
 # Uploads
+
 uploads/
 
 # Environment
+
 .env
 environment.yml
 
 # React
+
 node_modules/
 build/
 dist/
 
 # OS junk
+
 .DS_Store
 
 # Zip files
-*.zip
+
+\*.zip
+
+# Virtual environment
+
+venv/
+
+# VS Code
+
+.vscode/

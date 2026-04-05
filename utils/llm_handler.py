@@ -8,6 +8,11 @@ LLM_PROVIDER = "lmstudio"
 LMSTUDIO_URL = "http://127.0.0.1:1234/v1/chat/completions"
 MODEL_NAME = "meta-llama-3.1-8b-instruct-hf"
 
+
+from database.db_manager import (
+    db_get_bank_questions,
+    db_save_question_bank
+)
 # ======================================================
 # HARD QUESTION BANK
 # ======================================================
@@ -91,25 +96,29 @@ def extract_json(text):
 
     try:
 
-        # remove markdown junk
         text=text.replace("```json","")
         text=text.replace("```","")
-        # Parse the first JSON value (object OR array) even if extra text exists.
-        # This fixes cases where the LLM outputs JSON + trailing tokens.
-        start_candidates = [i for i in [text.find("{"), text.find("[")] if i != -1]
-        if not start_candidates:
+        text=text.strip()
+
+        # find first json start
+        match=re.search(r'[\{\[]',text)
+
+        if not match:
             return None
 
-        start = min(start_candidates)
-        cleaned = text[start:]
+        cleaned=text[match.start():]
 
-        decoder = json.JSONDecoder()
+        decoder=json.JSONDecoder()
+
         try:
-            obj, _idx = decoder.raw_decode(cleaned)
+            obj,_=decoder.raw_decode(cleaned)
+
         except json.JSONDecodeError:
-            # Common LLM issue: raw newlines/tabs inside quoted strings
-            cleaned = _escape_control_chars_in_strings(cleaned)
-            obj, _idx = decoder.raw_decode(cleaned)
+
+            cleaned=_escape_control_chars_in_strings(cleaned)
+
+            obj,_=decoder.raw_decode(cleaned)
+
         return obj
 
     except Exception as e:
@@ -119,89 +128,174 @@ def extract_json(text):
     return None
 
 
-
 # ======================================================
 # BATCH MCQ GENERATION  ← KEY CHANGE
 # ======================================================
 
-def generate_mcqs_batch(skills: list, count_per_skill: int = 3) -> dict:
-    """
-    ONE LLM call for ALL skills.
-    Returns dict: { skill_name: [questions] }
-    Falls back to empty dict on failure.
-    """
-    # Skills already covered by hard bank — skip from LLM call
-    llm_skills = [s for s in skills if s not in HARD_QUESTION_BANK]
+def generate_mcqs_batch(skills:list,count_per_skill:int=3):
 
-    if not llm_skills:
-        return {}
+    results={}
 
-    # Compact prompt — fewer tokens, strict schema
-    prompt = f"""
-Generate {count_per_skill} VERY HARD MCQs for EACH skill:
+    # ===== STEP 1 : TRY BANK FIRST =====
 
-{llm_skills}
+    missing_skills=[]
 
-These are COMPUTER SCIENCE SKILLS.
+    for skill in skills:
 
-Requirements:
+        bank=db_get_bank_questions(skill,count_per_skill)
 
-• Advanced questions only
-• Code tracing
-• Debugging
-• Complexity
-• Framework behavior
-• Performance issues
+        if len(bank)>=count_per_skill:
 
-At least one code question per skill. Put code inside the question text using triple backticks.
+            results[skill]=bank
 
-Return ONLY JSON object:
+            print("✓ bank used:",skill)
+
+        else:
+
+            results[skill]=bank
+            missing_skills.append(skill)
+
+
+    # ===== STEP 2 : LLM GENERATION =====
+
+    if missing_skills:
+
+        prompt=f"""
+Generate {count_per_skill} HARD technical MCQs for EACH skill:
+
+{missing_skills}
+
+IMPORTANT:
+
+Skill refers ONLY to programming technology.
+NOT animals.
+NOT general meaning.
+
+Example:
+Pandas = Python data analysis library
+NOT panda animal.
+
+Rules:
+
+Questions must be UNIQUE.
+No repeated concepts.
+No beginner questions.
+Focus on:
+
+• debugging
+• edge cases
+• code output
+• performance
+• real production problems
+
+Return ONLY JSON:
 
 {{
 "<skill>":[
-  {{"question":"...","options":{{"A":"...","B":"...","C":"...","D":"..."}}, "answer":"A"}},
-  ...
+{{"question":"...","options":{{"A":"...","B":"...","C":"...","D":"..."}}, "answer":"A"}}
 ]
 }}
-
-No text.
-No markdown.
-JSON only.
 """
-    raw = run_hf_llama(prompt, max_tokens=1400)
-    js = extract_json(raw)
-    
+        raw=run_hf_llama(prompt,1400)
 
-    if not isinstance(js, dict):
-        print("⚠️ Batch generation failed — will fallback per-skill")
-        return {}
+        js=extract_json(raw)
 
-    return js
+        if isinstance(js,dict):
 
+            new_bank=[]
+
+            for skill in missing_skills:
+
+                skill_questions=js.get(skill,[])
+
+                valid=_validate_questions(
+                    skill_questions,
+                    skill,
+                    count_per_skill
+                )
+
+                results[skill]+=valid
+
+                new_bank+=valid
+
+
+            # save new questions globally
+            if new_bank:
+
+                db_save_question_bank(new_bank)
+
+
+    # ===== STEP 3 : GUARANTEE COUNTS =====
+
+    for skill in skills:
+
+        while len(results[skill])<count_per_skill:
+
+            extra=generate_mcqs(skill,1)[0]
+
+            results[skill].append(extra)
+
+            db_save_question_bank([extra])
+
+
+    return results
 
 def _validate_questions(questions: list, skill: str, count: int) -> list:
     """Validate and normalize a list of raw MCQ dicts."""
-    valid = []
+
+    valid=[]
+    seen=set()
+
     for q in questions:
-        if (
+
+        if not (
             isinstance(q, dict)
             and "question" in q
             and "options" in q
             and "answer" in q
             and isinstance(q["options"], dict)
-            and set(q["options"].keys()) == {"A", "B", "C", "D"}
-            and q["answer"] in {"A", "B", "C", "D"}
+            and set(q["options"].keys()) == {"A","B","C","D"}
+            and q["answer"] in {"A","B","C","D"}
         ):
-            valid.append({
-                "question": q["question"].strip(),
-                "options": q["options"],
-                "answer": q["answer"],
-                "skill": skill
-            })
-        if len(valid) == count:
-            break
-    return valid
+            continue
 
+
+        # ===== NORMALIZE QUESTION TEXT =====
+
+        normalized=re.sub(
+            r'\s+',
+            ' ',
+            q["question"].strip().lower()
+        )
+
+
+        # ===== DUPLICATE FILTER =====
+
+        if normalized in seen:
+            continue
+
+
+        seen.add(normalized)
+
+
+        valid.append({
+
+            "question":q["question"].strip(),
+
+            "options":q["options"],
+
+            "answer":q["answer"],
+
+            "skill":skill
+
+        })
+
+
+        if len(valid)==count:
+            break
+
+
+    return valid
 
 def _escape_control_chars_in_strings(text: str) -> str:
     """
@@ -304,18 +398,73 @@ def generate_mcqs(skill: str, count: int = 1):
     Guaranteed MCQ generation:
     - Never loses questions
     - Repairs bad JSON
-    - Always returns count
+    - Removes duplicates
+    - Forces programming context
     """
 
     if skill in HARD_QUESTION_BANK:
 
-        return [random.choice(HARD_QUESTION_BANK[skill])]
+        q=random.choice(HARD_QUESTION_BANK[skill]).copy()
 
+        q["skill"]=skill
+
+        return [q]
+
+
+    # ===== SKILL CONTEXT FIX (prevents Pandas animal issue) =====
+
+    skill_context = {
+
+        "Pandas":"Pandas Python data analysis library",
+        "Numpy":"NumPy Python numerical computing library",
+        "Flask":"Flask Python backend web framework",
+        "Javascript":"JavaScript programming language",
+        "Java":"Java programming language",
+        "MongoDB":"MongoDB NoSQL database",
+        "DBMS":"Database Management Systems",
+        "OOP":"Object Oriented Programming",
+        "Operating Systems":"Computer Operating Systems"
+    }
+
+    skill_desc = skill_context.get(skill, skill)
+
+
+    # ===== IMPROVED PROMPT =====
 
     prompt = f"""
-Generate ONE HARD MCQ for skill:
+Generate ONE HARD technical MCQ for programming skill:
 
-{skill}
+{skill_desc}
+
+IMPORTANT:
+
+Skill refers ONLY to software technology.
+NOT animals.
+NOT general meaning.
+
+Example:
+
+Pandas means Python data analysis library.
+NOT panda animal.
+
+Difficulty:
+
+Final year Computer Science level.
+
+Question style:
+
+• Code output prediction
+• Debugging scenarios
+• Time/space complexity
+• Framework internals
+• Edge cases
+• Production issues
+
+Rules:
+
+Question must be UNIQUE.
+Avoid textbook questions.
+Avoid definitions.
 
 Return ONLY JSON:
 
@@ -326,12 +475,15 @@ Return ONLY JSON:
 }}
 
 Rules:
+
 4 options only
-Answer A/B/C/D
-No explanation
+Answer must be A/B/C/D
+No explanations
 JSON only
 """
 
+
+    seen=set()
 
     for attempt in range(3):
 
@@ -343,35 +495,73 @@ JSON only
             )
 
             js = extract_json(raw)
+            print("LLM parsed JSON:",js)
 
-            # ===== JSON failed → try repair =====
+            # ===== JSON FAILED → TRY REPAIR =====
 
             if not js:
 
                 repaired = repair_mcq(raw)
 
                 if repaired:
-                    return [repaired]
+
+                    key=re.sub(r'\s+',' ',repaired["question"].lower())
+
+                    if key not in seen:
+
+                        seen.add(key)
+
+                        repaired["skill"]=skill
+
+                        return [repaired]
 
                 continue
 
 
             valid = _validate_questions(
+
                 [js] if isinstance(js,dict) else js,
+
                 skill,
+
                 1
             )
 
+
             if valid:
 
-                return valid
+                key=re.sub(
+                    r'\s+',
+                    ' ',
+                    valid[0]["question"].lower()
+                )
+
+                if key not in seen:
+
+                    seen.add(key)
+
+                    return valid
 
 
             # validation failed → still try repair
+
             repaired = repair_mcq(raw)
 
             if repaired:
-                return [repaired]
+
+                key=re.sub(
+                    r'\s+',
+                    ' ',
+                    repaired["question"].lower()
+                )
+
+                if key not in seen:
+
+                    seen.add(key)
+
+                    repaired["skill"]=skill
+
+                    return [repaired]
 
 
         except Exception as e:
@@ -382,7 +572,6 @@ JSON only
     # ===== FINAL GUARANTEE =====
 
     return _fallback_questions(skill,1)
-
 
 
 
@@ -413,59 +602,129 @@ def generate_personality_questions():
 # ======================================================
 
 def validate_llm_recommendations(output, top_k=3):
-    if not isinstance(output, dict):
+    # Handle both {"recommendations": [...]} and bare [...]
+    if isinstance(output, list):
+        recs = output
+    elif isinstance(output, dict):
+        recs = output.get("recommendations")
+        if not isinstance(recs, list):
+            return None
+    else:
         return None
 
-    recs = output.get("recommendations")
-    if not isinstance(recs, list) or len(recs) != top_k:
+    fixed = []
+    for i, r in enumerate(recs):
+        if not isinstance(r, dict):
+            continue
+        title = r.get("title")
+        if not title:
+            continue
+        try:
+            score = float(r.get("final_score", 0))
+        except:
+            score = 0
+        score = max(0, min(score, 100))
+        fixed.append({
+            "career_id": r.get("career_id", f"llm_{i}"),
+            "title": title,
+            "final_score": score,
+            "technical_fit": float(r.get("technical_fit", 0)),
+            "personality_fit": float(r.get("personality_fit", 0)),
+            "claimed_alignment": float(r.get("claimed_alignment", 0)),
+            "reason": r.get("reason", "Recommended based on profile")
+        })
+
+    if len(fixed) < top_k:
         return None
 
-    # reason is optional (backend can fall back to deterministic reason)
-    required = {"career_id", "title", "final_score", "technical_fit",
-                "personality_fit", "claimed_alignment"}
-
-    for r in recs:
-        if not isinstance(r, dict) or not required.issubset(r.keys()):
-            return None
-        if not isinstance(r["final_score"], (int, float)):
-            return None
-        if not (0 <= float(r["final_score"]) <= 100):
-            return None
-
-    return recs
+    return fixed[:top_k]
 
 
 def enhance_career_recommendations_llm(
-    claimed_skills, verified_skills, personality, deterministic_recs, top_k=3
+    claimed_skills,
+    verified_skills,
+    personality,
+    deterministic_recs,
+    top_k=3
 ):
-    # Compact prompt
-    prompt = f"""Return exactly {top_k} career recommendations as JSON. No markdown.
 
-CLAIMED: {claimed_skills}
-VERIFIED: {verified_skills}
-PERSONALITY: {personality}
-DETERMINISTIC: {deterministic_recs}
+    print("\n===== TRYING LLM CAREER ENHANCEMENT =====")
 
-Return ONLY:
-{{"recommendations":[
-  {{"career_id":"...","title":"...","final_score":70,"technical_fit":65,"personality_fit":75,"claimed_alignment":80,"reason":"1-2 sentences"}}
-]}}
+    # Format verified skills nicely for the prompt
+    verified_str = ", ".join([f"{k} ({v}%)" for k, v in verified_skills.items()]) if isinstance(verified_skills, dict) else str(verified_skills)
+
+    prompt = f"""You are a career counselor. Return exactly {top_k} career recommendations as a JSON array. No markdown.
+
+USER PROFILE:
+- Verified skills with scores: {verified_str}
+- Claimed skills: {claimed_skills}
+
+CAREERS TO RECOMMEND (use these scores exactly):
+{deterministic_recs}
+
+For each career write a 2-sentence reason that:
+- Mentions 1-2 SPECIFIC skills the user actually has that are relevant
+- Mentions 1 key skill they are missing
+- Never uses generic phrases like "high technical fit" or "strong personality alignment"
+
+Example of a GOOD reason:
+"Your Flask and Python experience make you a strong candidate for backend roles. Strengthening OOP and DBMS would make you job-ready faster."
+
+Example of a BAD reason (do not do this):
+"High technical fit and strong personality alignment make this a good match."
+
+Return ONLY this format:
+[
+  {{"career_id":"...","title":"...","final_score":70,"technical_fit":65,"personality_fit":75,"claimed_alignment":80,"reason":"specific 2-sentence reason here"}}
+]
 
 No other text.
 """
 
+    
+    
+    
+    
     raw = run_hf_llama(prompt, max_tokens=1400)
-    js = extract_json(raw)
+    print("\n===== RAW LLM CAREER OUTPUT =====")
+    print(raw)
+    print("=================================\n")
 
-    if not js:
+    if not raw:
+
+        print("❌ LLM returned empty response")
+
         return None
 
+
+    js = extract_json(raw)
+    print("\n===== PARSED JSON =====")
+    print(js)
+    print("======================\n")
+
+
+    if not js:
+
+        print("❌ JSON extraction failed")
+
+        print("Raw output:",raw[:300])
+
+        return None
+
+
     validated = validate_llm_recommendations(js, top_k)
-    if validated:
+
+
+    if validated and len(validated)>0:
+
+        print("✅ LLM recommendations valid")
+
         return {"recommendations": validated}
 
-    return None
 
+    print("❌ LLM validation failed")
+
+    return None
 
 # ======================================================
 # RESUME → JOB LATEX OPTIMIZER

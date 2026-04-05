@@ -71,13 +71,20 @@ def init_db():
     # RESUMES (CLAIMED SKILLS)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS resumes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            file_name TEXT,
-            extracted_skills TEXT,
-            uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        )
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    file_name TEXT,
+
+    extracted_skills TEXT,
+    projects TEXT,
+    experience TEXT,
+    profile_type TEXT,
+    resume_text TEXT,
+
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+)
     """)
 
     # PERSONALITY
@@ -117,6 +124,25 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (assessment_id) REFERENCES assessments(id) ON DELETE CASCADE
         )
+    """)
+
+
+
+        # GLOBAL QUESTION BANK
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS question_bank (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            skill_name TEXT NOT NULL,
+            question_text TEXT NOT NULL,
+            options_json TEXT NOT NULL,
+            correct_answer TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cursor.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_bank_question
+        ON question_bank (skill_name, question_text)
     """)
 
     # GENERATED MCQs (QUIZ CACHE)
@@ -200,38 +226,123 @@ def db_login(email: str, password: str) -> Optional[int]:
 # RESUME (CLAIMED SKILLS)
 # ======================================================
 
-def db_save_resume_skills(user_id: int, file_name: str, skills: List[str]) -> bool:
+def db_save_resume_data(
+    user_id: int,
+    file_name: str,
+    skills: List[str],
+    projects: List[str],
+    experience: List[str],
+    profile: str,
+    resume_text: str
+) -> bool:
+
     try:
+
         conn = _connect()
         cursor = conn.cursor()
+
         cursor.execute("""
-            INSERT INTO resumes (user_id, file_name, extracted_skills)
-            VALUES (?, ?, ?)
-        """, (user_id, file_name, _to_json(skills)))
+
+        INSERT INTO resumes (
+
+            user_id,
+            file_name,
+
+            extracted_skills,
+            projects,
+            experience,
+            profile_type,
+            resume_text
+
+        )
+
+        VALUES (?,?,?,?,?,?,?)
+
+        """,(
+
+            user_id,
+
+            file_name,
+
+            _to_json(skills),
+
+            _to_json(projects),
+
+            _to_json(experience),
+
+            profile,
+
+            resume_text[:8000]   # prevent huge storage
+
+        ))
+
         conn.commit()
+
         return True
+
     except Exception as e:
-        print("db_save_resume_skills error:", e)
+
+        print("db_save_resume_data error:", e)
+
         return False
+
     finally:
+
         conn.close()
 
+def db_get_latest_resume(user_id:int):
 
-def db_get_latest_resume_skills(user_id: int) -> List[str]:
-    conn = _connect()
-    cursor = conn.cursor()
+    conn=_connect()
+
+    conn.row_factory=sqlite3.Row
+
+    cursor=conn.cursor()
+
     cursor.execute("""
-        SELECT extracted_skills
-        FROM resumes
-        WHERE user_id = ?
-        ORDER BY uploaded_at DESC
-        LIMIT 1
-    """, (user_id,))
-    row = cursor.fetchone()
+
+    SELECT *
+
+    FROM resumes
+
+    WHERE user_id=?
+
+    ORDER BY uploaded_at DESC
+
+    LIMIT 1
+
+    """,(user_id,))
+
+    row=cursor.fetchone()
+
     conn.close()
-    return _from_json(row[0], []) if row else []
 
+    if not row:
 
+        return None
+
+    return {
+
+        "skills":_from_json(row["extracted_skills"],[]),
+
+        "projects":_from_json(row["projects"],[]),
+
+        "experience":_from_json(row["experience"],[]),
+
+        "profile":row["profile_type"],
+
+        "resume_text":row["resume_text"]
+
+    }
+
+def db_get_latest_resume_skills(user_id:int):
+
+    resume=db_get_latest_resume(user_id)
+
+    if not resume:
+
+        return []
+
+    return resume.get("skills",[])
 # ======================================================
 # GENERATED QUESTIONS (MCQ CACHE)
 # ======================================================
@@ -299,6 +410,65 @@ def db_get_generated_questions(user_id: int) -> List[Dict]:
         for r in rows
     ]
 
+def db_save_question_bank(questions: List[Dict]):
+
+    conn = _connect()
+    cursor = conn.cursor()
+
+    try:
+
+        for q in questions:
+
+            cursor.execute("""
+                INSERT OR IGNORE INTO question_bank
+                (skill_name, question_text, options_json, correct_answer)
+                VALUES (?, ?, ?, ?)
+            """,(
+                q["skill"],
+                q["question"],
+                _to_json(q["options"]),
+                q["answer"]
+            ))
+
+        conn.commit()
+
+    except Exception as e:
+
+        print("bank save error:",e)
+
+    finally:
+
+        conn.close()
+
+def db_get_bank_questions(skill:str,count:int):
+
+    conn=_connect()
+    conn.row_factory=sqlite3.Row
+    cursor=conn.cursor()
+
+    cursor.execute("""
+        SELECT skill_name,question_text,options_json,correct_answer
+        FROM question_bank
+        WHERE skill_name=?
+        ORDER BY RANDOM()
+        LIMIT ?
+    """,(skill,count))
+
+    rows=cursor.fetchall()
+
+    conn.close()
+
+    return [
+
+        {
+            "skill":r["skill_name"],
+            "question":r["question_text"],
+            "options":_from_json(r["options_json"],{}),
+            "answer":r["correct_answer"]
+        }
+
+        for r in rows
+    ]
 
 # ======================================================
 # SAVE FULL ASSESSMENT

@@ -61,13 +61,11 @@ const Quiz = () => {
                 setElapsedSeconds(Number.isFinite(elapsed) ? elapsed : null);
 
                 // Only start quiz after generation finished AND expected total reached (if known)
-                const minimumStart = Math.min(expected || 999, MIN_START_QUESTIONS);
-
-                if (generated >= minimumStart) {
-                    setLoading(false);
-                } else {
-                    setLoading(true);
-                }
+                if(generated > 0){
+    setLoading(false);
+}else{
+    setLoading(true);
+}
 
                 // Poll while generating OR until expected count reached
                 const shouldPoll = generating || (expected ? generated < expected : true);
@@ -300,8 +298,9 @@ const splitQuestion = (text) => {
 
 const parsed = splitQuestion(q.question);
 
-const progress = ((currentIdx + 1) / questions.length) * 100;
+const total = expectedTotal || questions.length;
 
+const progress = ((currentIdx + 1) / total) * 100;
 
     return (
 
@@ -331,7 +330,7 @@ const progress = ((currentIdx + 1) / questions.length) * 100;
 
                         <span className="text-slate-400">
 
-                            {currentIdx + 1} / {questions.length}
+                            {currentIdx + 1} / {expectedTotal || questions.length}
 
                         </span>
 
@@ -352,7 +351,11 @@ const progress = ((currentIdx + 1) / questions.length) * 100;
                     </div>
 
                 </div>
-
+{isGenerating && (
+<div className="text-xs text-indigo-400">
+Generated {generatedTotal}/{expectedTotal}
+</div>
+)}
 
 
                 {/* QUESTION */}
