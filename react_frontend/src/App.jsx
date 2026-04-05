@@ -11,6 +11,7 @@ import ResumeUpload from './pages/ResumeUpload';
 import Personality from './pages/Personality';
 import Quiz from './pages/Quiz';
 import Profile from './pages/Profile';
+import ResumeOptimizer from './pages/ResumeOptimizer';
 
 // Helper: Makes sure every page starts at the top when you navigate
 const ScrollToTop = () => {
@@ -43,8 +44,9 @@ function App() {
           <Route path="/personality" element={<Personality />} />
           <Route path="/quiz" element={<Quiz />} />
 
-          {/* Final Results & Career Chatbot */}
+          {/* Final Results, Career Chatbot & Resume Optimizer */}
           <Route path="/profile" element={<Profile />} />
+          <Route path="/resume-optimizer" element={<ResumeOptimizer />} />
 
           {/* Fallback: Catch-all redirect */}
           <Route path="*" element={<Navigate to="/" replace />} />

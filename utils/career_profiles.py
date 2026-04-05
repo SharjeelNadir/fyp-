@@ -1,4 +1,4 @@
-# frontend/src/utils/career_profiles.py
+# frontend/utils/career_profiles.py
 from typing import Dict, List, Any
 
 CAREER_PROFILES: List[Dict[str, Any]] = [

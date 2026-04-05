@@ -158,13 +158,60 @@ const Profile = () => {
                     </p>
                 </header>
 
+                <div className="bg-slate-900/30 border border-white/5 p-8 rounded-[2.5rem]">
+
+                    <h4 className="text-xs font-black uppercase text-slate-500 mb-6">
+
+                        Assessment Pipeline
+
+                    </h4>
+
+                    <div className="flex flex-wrap gap-6 text-xs">
+
+                        <span className="px-4 py-2 bg-indigo-500/20 rounded-full text-indigo-400 font-bold">
+                            Resume Parsed ✓
+                        </span>
+
+                        <span className="px-4 py-2 bg-indigo-500/20 rounded-full text-indigo-400 font-bold">
+                            Personality Modeled ✓
+                        </span>
+
+                        <span className="px-4 py-2 bg-indigo-500/20 rounded-full text-indigo-400 font-bold">
+                            Technical Evaluation ✓
+                        </span>
+
+                        <span className="px-4 py-2 bg-emerald-500/20 rounded-full text-emerald-400 font-bold">
+                            Career Generated ✓
+                        </span>
+
+                    </div>
+
+                </div>
+
                 {/* PERFORMANCE SECTION */}
                 <div className="grid md:grid-cols-2 gap-6">
-                    <div className="bg-slate-900/40 border border-white/5 p-8 rounded-[2.5rem]">
+                <div className="bg-slate-900/40 border border-white/5 p-8 rounded-[2.5rem]">
                         <p className="text-xs font-black text-slate-500 uppercase mb-4">Quiz Accuracy</p>
                         <div className="flex items-baseline gap-3">
-                            <span className="text-7xl font-black">{master.total_score}</span>
-                            <span className="text-2xl text-slate-600">/ {master.total_questions}</span>
+                            <div className="flex items-end gap-4">
+
+                                <span className="text-7xl font-black">
+                                    {master.total_score}
+                                </span>
+
+                                <span className="text-3xl text-slate-600 mb-2">
+                                    / {master.total_questions}
+                                </span>
+
+                                <span className="text-indigo-400 font-bold mb-3">
+
+                                    ({Math.round(
+                                        (master.total_score / master.total_questions) * 100
+                                    )}%)
+
+                                </span>
+
+                            </div>
                         </div>
                         <div className="mt-8 w-full h-1.5 bg-slate-800 rounded-full">
                             <div
@@ -176,12 +223,18 @@ const Profile = () => {
                         </div>
                     </div>
 
-                    <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-8 rounded-[2.5rem] shadow-xl">
+                    <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-8 rounded-[2.5rem] shadow-xl flex flex-col justify-between">
                         <p className="text-xs font-black uppercase text-white/50 mb-2">Market Standing</p>
                         <h3 className="text-4xl font-black">Career Mapping Ready</h3>
                         <p className="mt-4 text-sm font-bold uppercase text-indigo-100/70">
                             Deterministic Recommendation Engine
                         </p>
+                        <button
+                            onClick={() => window.location.href = '/resume-optimizer'}
+                            className="mt-6 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-black uppercase tracking-[0.2em] bg-black/30 hover:bg-black/40 border border-white/20"
+                        >
+                            Optimize Resume for a Job
+                        </button>
                     </div>
                 </div>
 
@@ -267,20 +320,117 @@ const Profile = () => {
 
                     <div className="space-y-6">
                         {careers.map((career, idx) => (
-                            <div key={idx} className="bg-slate-900/40 border border-white/5 p-6 rounded-2xl">
+                            <div key={idx}
+
+                                className="bg-gradient-to-br from-slate-900 to-slate-800 
+border border-indigo-500/10 p-8 rounded-3xl 
+hover:border-indigo-500/30 transition shadow-xl">
                                 <h3 className="text-xl font-black mb-2">
                                     {idx + 1}. {career.title}
                                 </h3>
 
-                                <div className="text-4xl font-black text-indigo-400 mb-4">
-                                    {career.final_score}%
+                                <div className="mb-6">
+
+                                    <div className="text-5xl font-black text-indigo-400 mb-2">
+
+                                        {career.final_score}%
+                                        <p className="text-xs text-slate-500 mt-2">
+
+Market readiness:
+
+<span className="ml-2 font-bold text-indigo-400">
+
+{career.final_score > 70 ? "High" :
+career.final_score > 40 ? "Moderate" :
+"Developing"}
+
+</span>
+
+</p>
+
+                                    </div>
+
+                                    <div className="w-full h-2 bg-slate-800 rounded-full">
+
+                                        <div
+
+                                            className="h-2 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full"
+
+                                            style={{
+                                                width: `${career.final_score}%`
+                                            }}
+
+                                        ></div>
+
+                                    </div>
+
                                 </div>
 
-                                <div className="text-sm text-slate-400 space-y-1">
-                                    <p>Technical Match: {career.technical_fit}%</p>
-                                    <p>Personality Match: {career.personality_fit}%</p>
-                                    <p>Claimed Skills Match: {career.claimed_alignment}%</p>
-                                </div>
+<div className="text-sm text-slate-400 space-y-2">
+
+<p>
+Technical Match:
+<span className="text-indigo-400 ml-2">
+{career.technical_fit}%
+</span>
+</p>
+
+<p>
+Personality Match:
+<span className="text-indigo-400 ml-2">
+{career.personality_fit}%
+</span>
+</p>
+
+<p>
+Claimed Skills Match:
+<span className="text-indigo-400 ml-2">
+{career.claimed_alignment}%
+</span>
+</p>
+
+{/* ⭐ JOB FIT ANALYZER */}
+{career.reason && (
+
+<div className="mt-3 p-3 bg-indigo-500/10 
+border border-indigo-500/20 
+rounded-xl">
+
+<p className="text-xs font-bold text-indigo-400 mb-1">
+Job Fit Analysis
+</p>
+
+<p className="text-xs">
+{career.reason}
+</p>
+
+</div>
+
+)}
+
+{/* ⭐ CAREER ROADMAP */}
+{career.improvement_areas && career.improvement_areas.length > 0 && (
+
+<div className="mt-3 p-3 bg-purple-500/10 
+border border-purple-500/20 
+rounded-xl">
+
+<p className="text-xs font-bold text-purple-400 mb-1">
+Career Roadmap
+</p>
+
+<p className="text-xs text-slate-300">
+
+Improve skills:
+{career.improvement_areas.join(", ")}
+
+</p>
+
+</div>
+
+)}
+
+</div>
                             </div>
                         ))}
 
@@ -293,9 +443,12 @@ const Profile = () => {
             {!showChat && (
                 <button
                     onClick={() => setShowChat(true)}
-                    className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-4 
-                   bg-indigo-600 rounded-2xl shadow-2xl hover:bg-indigo-500 transition-all"
+                    className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-6 py-5 
+bg-gradient-to-r from-indigo-600 to-purple-600 
+rounded-2xl shadow-2xl hover:scale-105 transition-all
+border border-indigo-400/20"
                 >
+
                     🤖
                     <div className="text-left">
                         <p className="text-xs font-black uppercase tracking-widest opacity-80">
