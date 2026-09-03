@@ -195,7 +195,7 @@ python -m spacy download en_core_web_sm
 
 ### Start Ollama
 
-Ensure Ollama is installed and running.
+Ensure Ollama is installed and running and make sure to make changes of LMSTUDIO_URL in utils/llm_handler.py and add the address provided by Ollama ( and in case you have a AMD card , use LMstudio and make sure to install RoCum Support from hardware setting).
 
 Pull the required model:
 
